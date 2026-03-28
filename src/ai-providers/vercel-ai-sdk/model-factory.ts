@@ -4,6 +4,9 @@
  * Reads ai-provider-manager.json from disk on each call so that model
  * changes take effect without a restart.  Uses dynamic imports so unused
  * provider packages don't prevent startup.
+ *
+ * When loginMethod is 'chatgpt-oauth', the OpenAI provider is created with
+ * a custom fetch that routes requests through the ChatGPT Codex backend API.
  */
 
 import type { LanguageModel } from 'ai'
@@ -12,7 +15,7 @@ import { readAIProviderConfig } from '../../core/config.js'
 /** Result includes the model plus a cache key for change detection. */
 export interface ModelFromConfig {
   model: LanguageModel
-  /** `provider:modelId:baseUrl` — use this to detect config changes. */
+  /** `provider:modelId:baseUrl:loginMethod` — use this to detect config changes. */
   key: string
 }
 
@@ -30,7 +33,8 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
   const p = override?.provider ?? config.provider
   const m = override?.model ?? config.model
   const url = override?.baseUrl ?? config.baseUrl
-  const key = `${p}:${m}:${url ?? ''}`
+  const loginMethod = config.loginMethod ?? 'api-key'
+  const key = `${p}:${m}:${url ?? ''}:${loginMethod}`
 
   // Resolve API key: override.apiKey > global config.apiKeys[provider]
   const resolveApiKey = (provider: string) => {
@@ -46,6 +50,20 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
     }
     case 'openai': {
       const { createOpenAI } = await import('@ai-sdk/openai')
+
+      // ChatGPT OAuth: use custom fetch that routes through Codex backend
+      if (loginMethod === 'chatgpt-oauth') {
+        const { createChatGPTFetch } = await import('../chatgpt-oauth/index.js')
+        const chatgptFetch = createChatGPTFetch()
+        const client = createOpenAI({
+          apiKey: 'chatgpt-oauth', // Dummy — actual auth via OAuth in custom fetch
+          baseURL: 'https://chatgpt.com/backend-api',
+          fetch: chatgptFetch,
+        })
+        return { model: client(m), key }
+      }
+
+      // Standard OpenAI API key flow
       const client = createOpenAI({ apiKey: resolveApiKey('openai'), baseURL: url || undefined })
       return { model: client(m), key }
     }
@@ -58,3 +76,4 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
       throw new Error(`Unsupported model provider: "${p}". Supported: anthropic, openai, google`)
   }
 }
+

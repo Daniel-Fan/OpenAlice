@@ -13,7 +13,7 @@ const engineSchema = z.object({
   port: z.number().int().positive().default(3000),
 })
 
-const loginMethodSchema = z.enum(['api-key', 'claudeai'])
+const loginMethodSchema = z.enum(['api-key', 'claudeai', 'chatgpt-oauth'])
 
 export const aiProviderSchema = z.object({
   backend: z.enum(['claude-code', 'vercel-ai-sdk', 'agent-sdk']).default('claude-code'),

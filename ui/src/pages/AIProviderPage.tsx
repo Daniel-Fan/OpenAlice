@@ -22,12 +22,27 @@ const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
     { label: 'GPT-5.2', value: 'gpt-5.2' },
     { label: 'GPT-5 Mini', value: 'gpt-5-mini' },
   ],
+  'openai-codex': [
+    { label: 'GPT-5.3 Codex', value: 'gpt-5.3-codex' },
+    { label: 'GPT-5.4', value: 'gpt-5.4' },
+    { label: 'GPT-5.2 Codex', value: 'gpt-5.2-codex' },
+    { label: 'GPT-5.1 Codex', value: 'gpt-5.1-codex' },
+    { label: 'GPT-5.1 Codex Max', value: 'gpt-5.1-codex-max' },
+    { label: 'GPT-5.1 Codex Mini', value: 'gpt-5.1-codex-mini' },
+    { label: 'GPT-5.2', value: 'gpt-5.2' },
+    { label: 'GPT-5.1', value: 'gpt-5.1' },
+  ],
   google: [
     { label: 'Gemini 3.1 Pro', value: 'gemini-3.1-pro-preview' },
     { label: 'Gemini 3 Flash', value: 'gemini-3-flash-preview' },
     { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
   ],
 }
+
+const OPENAI_LOGIN_METHODS: { value: LoginMethod; label: string; subtitle: string; hint: string }[] = [
+  { value: 'chatgpt-oauth', label: 'ChatGPT Plus/Pro', subtitle: 'Use your ChatGPT subscription', hint: 'Login with your ChatGPT Plus/Pro account to use Codex backend models. No API key needed.' },
+  { value: 'api-key', label: 'API Key', subtitle: 'Pay per token', hint: 'Enter your OpenAI Platform API key. Billed per token to your API account.' },
+]
 
 const PROVIDERS = [
   { value: 'anthropic', label: 'Anthropic' },
@@ -156,11 +171,16 @@ export function AIProviderPage() {
               </ConfigSection>
             )}
 
-            {/* OpenAI simplified form */}
+            {/* OpenAI auth + model */}
             {uiBackend === 'openai' && (
-              <ConfigSection title="Model" description="Select a model and enter your OpenAI API key.">
-                <OpenAIForm aiProvider={config.aiProvider} />
-              </ConfigSection>
+              <>
+                <ConfigSection title="Authentication" description="Choose how Alice connects to OpenAI.">
+                  <OpenAIAuthForm aiProvider={config.aiProvider} onUpdate={(patch) => setConfig((c) => c ? { ...c, aiProvider: { ...c.aiProvider, ...patch } } : c)} />
+                </ConfigSection>
+                <ConfigSection title="Model" description="Select a model. Changes take effect on the next request.">
+                  <OpenAIForm aiProvider={config.aiProvider} />
+                </ConfigSection>
+              </>
             )}
 
             {/* Full model form (only for Vercel AI SDK) */}
@@ -178,10 +198,11 @@ export function AIProviderPage() {
   )
 }
 
-// ==================== OpenAI Form (simplified) ====================
+// ==================== OpenAI Form (model selection — login-method-aware) ====================
 
 function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
-  const presets = PROVIDER_MODELS.openai
+  const isChatGPT = aiProvider.loginMethod === 'chatgpt-oauth'
+  const presets = isChatGPT ? PROVIDER_MODELS['openai-codex'] : PROVIDER_MODELS.openai
   const initModel = aiProvider.provider === 'openai' && aiProvider.model ? aiProvider.model : presets[0].value
   const isPreset = presets.some((p) => p.value === initModel)
 
@@ -192,6 +213,15 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
   const [keySaveStatus, setKeySaveStatus] = useState<SaveStatus>('idle')
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Reset model when login method changes
+  useEffect(() => {
+    const newPresets = isChatGPT ? PROVIDER_MODELS['openai-codex'] : PROVIDER_MODELS.openai
+    if (!newPresets.some((p) => p.value === model) && model !== '') {
+      setModel(newPresets[0].value)
+      setCustomModel('')
+    }
+  }, [isChatGPT]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const effectiveModel = model || customModel
 
   // Auto-save model + baseUrl
@@ -200,9 +230,9 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
       ...aiProvider,
       provider: 'openai',
       model: effectiveModel,
-      ...(baseUrl ? { baseUrl } : { baseUrl: undefined }),
+      ...(baseUrl && !isChatGPT ? { baseUrl } : { baseUrl: undefined }),
     }),
-    [aiProvider, effectiveModel, baseUrl],
+    [aiProvider, effectiveModel, baseUrl, isChatGPT],
   )
 
   const saveModel = useCallback(async (data: Record<string, unknown>) => {
@@ -262,46 +292,216 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
             className={inputClass}
             value={customModel}
             onChange={(e) => setCustomModel(e.target.value)}
-            placeholder="e.g. gpt-4o, o3-pro"
+            placeholder={isChatGPT ? 'e.g. gpt-5.2-codex' : 'e.g. gpt-4o, o3-pro'}
           />
         </Field>
       )}
 
-      <Field label="API Key">
-        <div className="relative">
-          <input
-            className={inputClass}
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder={hasKey ? '(configured)' : 'sk-...'}
-          />
-          {hasKey && (
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">active</span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 mt-2">
-          <button
-            onClick={handleSaveKey}
-            disabled={!apiKey || keySaveStatus === 'saving'}
-            className="btn-primary"
-          >
-            Save Key
-          </button>
-          <SaveIndicator status={keySaveStatus} onRetry={handleSaveKey} />
-        </div>
-      </Field>
+      {/* API key + base URL only for standard OpenAI API key mode */}
+      {!isChatGPT && (
+        <>
+          <Field label="API Key">
+            <div className="relative">
+              <input
+                className={inputClass}
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={hasKey ? '(configured)' : 'sk-...'}
+              />
+              {hasKey && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">active</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                onClick={handleSaveKey}
+                disabled={!apiKey || keySaveStatus === 'saving'}
+                className="btn-primary"
+              >
+                Save Key
+              </button>
+              <SaveIndicator status={keySaveStatus} onRetry={handleSaveKey} />
+            </div>
+          </Field>
 
-      <Field label="Base URL" description="Leave empty for the official OpenAI API. Set for proxies or compatible endpoints (e.g. Azure OpenAI).">
-        <input
-          className={inputClass}
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="https://api.openai.com/v1"
-        />
-      </Field>
+          <Field label="Base URL" description="Leave empty for the official OpenAI API. Set for proxies or compatible endpoints (e.g. Azure OpenAI).">
+            <input
+              className={inputClass}
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://api.openai.com/v1"
+            />
+          </Field>
+        </>
+      )}
 
       <SaveIndicator status={modelStatus} onRetry={modelRetry} />
+    </>
+  )
+}
+
+// ==================== OpenAI Auth Form (ChatGPT OAuth / API Key) ====================
+
+function OpenAIAuthForm({ aiProvider, onUpdate }: { aiProvider: AIProviderConfig; onUpdate: (patch: Partial<AIProviderConfig>) => void }) {
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>(aiProvider.loginMethod ?? 'api-key')
+  const [authStatus, setAuthStatus] = useState<{ authenticated: boolean; accountId?: string } | null>(null)
+  const [loginState, setLoginState] = useState<'idle' | 'waiting' | 'success' | 'error'>('idle')
+  const [loginError, setLoginError] = useState('')
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Check auth status on mount
+  useEffect(() => {
+    api.chatgptAuth.status().then(setAuthStatus).catch(() => {})
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
+
+  const handleLoginMethodChange = async (method: LoginMethod) => {
+    setLoginMethod(method)
+    try {
+      await api.config.updateSection('aiProvider', { ...aiProvider, loginMethod: method })
+      onUpdate({ loginMethod: method })
+    } catch { setLoginMethod(loginMethod) }
+  }
+
+  const handleLogin = async () => {
+    setLoginState('waiting')
+    setLoginError('')
+    try {
+      const { url, autoMode } = await api.chatgptAuth.start()
+
+      if (!autoMode) {
+        // Manual mode: user needs to paste URL — show the URL
+        const code = window.prompt(
+          'A browser window should have opened. After logging in, paste the redirect URL here:',
+          '',
+        )
+        if (code) {
+          const result = await api.chatgptAuth.callback(code)
+          if (result.success) {
+            setLoginState('success')
+            setAuthStatus({ authenticated: true, accountId: result.accountId })
+          } else {
+            setLoginState('error')
+            setLoginError(result.error || 'Login failed')
+          }
+        } else {
+          setLoginState('idle')
+        }
+        return
+      }
+
+      // Auto mode: poll for callback
+      pollRef.current = setInterval(async () => {
+        try {
+          const result = await api.chatgptAuth.poll()
+          if (result.pending) return // Still waiting
+          if (pollRef.current) clearInterval(pollRef.current)
+          if (result.success) {
+            setLoginState('success')
+            setAuthStatus({ authenticated: true, accountId: result.accountId })
+          } else {
+            setLoginState('error')
+            setLoginError(result.error || 'Login failed')
+          }
+        } catch {
+          if (pollRef.current) clearInterval(pollRef.current)
+          setLoginState('error')
+          setLoginError('Polling failed')
+        }
+      }, 1000)
+
+      // Timeout after 60s
+      setTimeout(() => {
+        if (pollRef.current) {
+          clearInterval(pollRef.current)
+          pollRef.current = null
+          setLoginState('error')
+          setLoginError('Login timed out. Please try again.')
+        }
+      }, 60_000)
+    } catch (err) {
+      setLoginState('error')
+      setLoginError(err instanceof Error ? err.message : 'Failed to start login')
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await api.chatgptAuth.logout()
+      setAuthStatus({ authenticated: false })
+      setLoginState('idle')
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        {OPENAI_LOGIN_METHODS.map((m) => (
+          <BackendCard
+            key={m.value}
+            selected={loginMethod === m.value}
+            onClick={() => handleLoginMethodChange(m.value)}
+            icon={m.value === 'chatgpt-oauth'
+              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>
+              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
+            title={m.label}
+            description={m.subtitle}
+          />
+        ))}
+      </div>
+      <p className="text-[11px] text-text-muted mt-2">
+        {OPENAI_LOGIN_METHODS.find((m) => m.value === loginMethod)?.hint}
+      </p>
+
+      {loginMethod === 'chatgpt-oauth' && (
+        <div className="mt-3 space-y-3">
+          {authStatus?.authenticated ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-2 bg-green/10 border border-green/20 rounded-lg">
+                <span className="w-2 h-2 rounded-full bg-green" />
+                <span className="text-[12px] text-green font-medium">
+                  Connected
+                </span>
+                {authStatus.accountId && (
+                  <span className="text-[11px] text-text-muted ml-1">
+                    ({authStatus.accountId.slice(0, 8)}…)
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleLogout}
+                className="text-[12px] text-text-muted hover:text-red transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleLogin}
+                disabled={loginState === 'waiting'}
+                className="btn-primary flex items-center gap-2"
+              >
+                {loginState === 'waiting' ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                    Waiting for login…
+                  </>
+                ) : (
+                  'Login with ChatGPT'
+                )}
+              </button>
+              {loginState === 'error' && (
+                <span className="text-[11px] text-red">{loginError}</span>
+              )}
+              {loginState === 'success' && (
+                <span className="text-[11px] text-green">Login successful!</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </>
   )
 }

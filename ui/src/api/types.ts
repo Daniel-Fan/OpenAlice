@@ -7,7 +7,7 @@ export interface VercelAiSdkOverride {
   apiKey?: string
 }
 
-export type LoginMethod = 'api-key' | 'claudeai'
+export type LoginMethod = 'api-key' | 'claudeai' | 'chatgpt-oauth'
 
 export interface AgentSdkOverride {
   model?: string
