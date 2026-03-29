@@ -209,6 +209,7 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
   const [model, setModel] = useState(isPreset ? initModel : '')
   const [customModel, setCustomModel] = useState(isPreset ? '' : initModel)
   const [baseUrl, setBaseUrl] = useState(aiProvider.baseUrl || '')
+  const [reasoningEffort, setReasoningEffort] = useState(aiProvider.reasoningEffort || '')
   const [apiKey, setApiKey] = useState('')
   const [keySaveStatus, setKeySaveStatus] = useState<SaveStatus>('idle')
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -224,15 +225,16 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
 
   const effectiveModel = model || customModel
 
-  // Auto-save model + baseUrl
+  // Auto-save model + baseUrl + reasoningEffort
   const modelData = useMemo(
     () => ({
       ...aiProvider,
       provider: 'openai',
       model: effectiveModel,
       ...(baseUrl && !isChatGPT ? { baseUrl } : { baseUrl: undefined }),
+      ...(reasoningEffort ? { reasoningEffort } : { reasoningEffort: undefined }),
     }),
-    [aiProvider, effectiveModel, baseUrl, isChatGPT],
+    [aiProvider, effectiveModel, baseUrl, isChatGPT, reasoningEffort],
   )
 
   const saveModel = useCallback(async (data: Record<string, unknown>) => {
@@ -296,6 +298,20 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
           />
         </Field>
       )}
+
+      <Field label="Reasoning Effort" description="Configure reasoning effort for O-series or Codex API.">
+        <select
+          className={inputClass}
+          value={reasoningEffort}
+          onChange={(e) => setReasoningEffort(e.target.value)}
+        >
+          <option value="">Default</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="extra_high">Extra High (Codex Max)</option>
+        </select>
+      </Field>
 
       {/* API key + base URL only for standard OpenAI API key mode */}
       {!isChatGPT && (

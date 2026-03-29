@@ -83,7 +83,7 @@ interface RequestBody {
   [key: string]: unknown
 }
 
-function transformRequestBody(body: RequestBody): RequestBody {
+function transformRequestBody(body: RequestBody, opts?: { reasoningEffort?: string }): RequestBody {
   const transformed = { ...body }
 
   // Normalize model
@@ -101,7 +101,10 @@ function transformRequestBody(body: RequestBody): RequestBody {
   if (!transformed.reasoning) {
     transformed.reasoning = {}
   }
-  const effort = transformed.reasoning.effort || 'medium'
+  
+  // Prefer provided opts, fallback to body value, or 'medium'
+  const effortVal = opts?.reasoningEffort || transformed.reasoning.effort || (body as any).reasoning_effort || 'medium'
+  const effort = typeof effortVal === 'string' ? effortVal : 'medium'
   // Normalize 'minimal' to 'low' for Codex models
   let normalizedEffort = effort === 'minimal' ? 'low' : effort
   // Clamp Codex Mini to 'medium' minimum (or 'high' if requested)
@@ -301,7 +304,7 @@ async function mapUsageLimit404(response: Response): Promise<Response | null> {
  * ChatGPT Codex backend API, handling token management, URL rewriting,
  * request transformation, and response conversion.
  */
-export function createChatGPTFetch(): typeof globalThis.fetch {
+export function createChatGPTFetch(opts?: { reasoningEffort?: string }): typeof globalThis.fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     // Step 1: Load and refresh tokens if needed
     let tokens = await loadTokens()
@@ -335,7 +338,7 @@ export function createChatGPTFetch(): typeof globalThis.fetch {
       try {
         const body = JSON.parse(init.body as string) as RequestBody
         isStreaming = body.stream === true
-        const transformedBody = transformRequestBody(body)
+        const transformedBody = transformRequestBody(body, opts)
         requestInit = { ...init, body: JSON.stringify(transformedBody) }
       } catch (err) {
         console.error('[chatgpt-oauth] Error transforming request body:', err)

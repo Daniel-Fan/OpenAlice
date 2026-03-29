@@ -65,6 +65,7 @@ export interface AIProviderConfig {
   model: string
   baseUrl?: string
   loginMethod?: LoginMethod
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'extra_high'
   apiKeys: { anthropic?: string; openai?: string; google?: string }
 }
 

@@ -22,6 +22,7 @@ export const aiProviderSchema = z.object({
   baseUrl: z.string().min(1).optional(),
   /** Authentication method for Agent SDK: api-key (default), oauth (Console), claudeai (Pro/Max). */
   loginMethod: loginMethodSchema.default('api-key'),
+  reasoningEffort: z.enum(['low', 'medium', 'high', 'extra_high']).optional(),
   apiKeys: z.object({
     anthropic: z.string().optional(),
     openai: z.string().optional(),

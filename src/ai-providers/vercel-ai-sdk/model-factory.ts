@@ -54,7 +54,9 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
       // ChatGPT OAuth: use custom fetch that routes through Codex backend
       if (loginMethod === 'chatgpt-oauth') {
         const { createChatGPTFetch } = await import('../chatgpt-oauth/index.js')
-        const chatgptFetch = createChatGPTFetch()
+        const chatgptFetch = createChatGPTFetch({
+          reasoningEffort: config.reasoningEffort,
+        })
         const client = createOpenAI({
           apiKey: 'chatgpt-oauth', // Dummy — actual auth via OAuth in custom fetch
           baseURL: 'https://chatgpt.com/backend-api',
