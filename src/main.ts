@@ -38,6 +38,7 @@ import { createCronEngine, createCronListener, createCronTools } from './task/cr
 import { createHeartbeat } from './task/heartbeat/index.js'
 import { NewsCollectorStore, NewsCollector } from './domain/news/index.js'
 import { createNewsArchiveTools } from './tool/news.js'
+import { createFsTools } from './tool/fs.js'
 
 // ==================== Persistence paths ====================
 
@@ -184,6 +185,7 @@ async function main() {
 
   toolCenter.register(createBrainTools(brain), 'brain')
   toolCenter.register(createBrowserTools(), 'browser')
+  toolCenter.register(createFsTools(), 'fs')
   toolCenter.register(createCronTools(cronEngine), 'cron')
   toolCenter.register(createMarketSearchTools(symbolIndex, cryptoClient, currencyClient), 'market-search')
   toolCenter.register(createEquityTools(equityClient), 'equity')

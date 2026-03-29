@@ -42,7 +42,11 @@ export function createCronTools(cronEngine: CronEngine) {
         '- state: Runtime info (nextRunAtMs, lastRunAtMs, lastStatus, consecutiveErrors)',
       inputSchema: z.object({}),
       execute: async () => {
-        return cronEngine.list()
+        return { 
+          success: true, 
+          jobs: cronEngine.list(),
+          message: 'This is the complete list of scheduled cron jobs. Do not call this tool again for the same request unless instructed to.'
+        }
       },
     }),
 
@@ -55,7 +59,7 @@ export function createCronTools(cronEngine: CronEngine) {
         '- at: One-shot at a specific time. E.g. { kind: "at", at: "2025-06-01T14:00:00Z" }\n' +
         '- every: Repeating interval. E.g. { kind: "every", every: "2h" } or { kind: "every", every: "30m" }\n' +
         '- cron: Cron expression. E.g. { kind: "cron", cron: "0 9 * * 1-5" } (weekdays 9am)\n\n' +
-        "Returns the new job's id.",
+        "Returns { success: true, id: string, message: string } on success.",
       inputSchema: z.object({
         name: z.string().describe('Short descriptive name for the job, e.g. "Check ETH funding rate"'),
         payload: z.string().describe('The reminder/instruction text delivered to you when the job fires'),
@@ -76,7 +80,11 @@ export function createCronTools(cronEngine: CronEngine) {
           schedule,
           enabled,
         })
-        return { id }
+        return { 
+          success: true,
+          id, 
+          message: `Cron job '${name}' created successfully. The job is scheduled and active. Do not call this tool again for the same request.` 
+        }
       },
     }),
 
